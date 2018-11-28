@@ -520,7 +520,7 @@ class ElfInfo:
         return ElfNote(build_id_bin)
 
     def get_symbol_by_name(self, name):
-        return self.symbol_dic.get(name, False)
+        return self.symbol_dic.get(name, None)
 
     def get_objtype(self):
         return self.header.get_objtype()
