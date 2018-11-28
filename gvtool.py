@@ -7,7 +7,7 @@ import struct
 
 import pet
 
-DEBUG = True
+DEBUG = False
 
 class ProcMapEntry:
     def __init__(self, start, end, permission, offset, dev, inode, path):
@@ -83,7 +83,8 @@ def get_baseaddr(filepath, pid):
             entry = re.sub(r" +", r" ", line.strip()).split(" ")
             if entry[-1] == "[stack]" or entry[-1] == "[vdso]" or entry[-1] == "[vvar]":
                 pass
-            print(entry)
+            if DEBUG:
+                print(entry)
             addr = entry[0].split("-")
             perm = entry[1]
             offset = entry[2]
@@ -129,20 +130,12 @@ def procmem_read(fd, base_addr, offset, size):
     unpack_str = get_pack_str(size)
     acc_addr = base_addr + offset
     result = struct.unpack(unpack_str, os.pread(fd, size, acc_addr))[0]
-    if DEBUG:
-        print("access addr = 0x{:x}".format(acc_addr))
-        print("read result: 0x{:x}".format(result))
     return result
 
 def procmem_write(fd, base_addr, offset, write_data, size):
     pack_str = get_pack_str(size)
     acc_addr = base_addr + offset
-    if DEBUG:
-        print("access addr = 0x{:x}".format(acc_addr))
-        print("before: 0x{:x}".format(procmem_read(fd, base_addr, offset, size)))
     os.pwrite(fd, struct.pack(pack_str, write_data), acc_addr)
-    if DEBUG:
-        print(" after: 0x{:x}".format(procmem_read(fd, base_addr, offset, size)))
 
 def main():
     pyver_major = sys.version_info.major
@@ -160,14 +153,20 @@ def main():
     pid = int(sys.argv[2].strip())
     gvar_name = sys.argv[3].strip()
     if len(sys.argv) == 5:
-        write_value = int(sys.argv[4])
+        if sys.argv[4].find("0x") == 0:
+            write_value = int(sys.argv[4], 16)
+        elif sys.argv[4].find("0o") == 0:
+            write_value = int(sys.argv[4], 8)
+        else:
+            write_value = int(sys.argv[4])
     else:
-        write_value = False
+        write_value = None
 
     # read elf info
     elfinfo = pet.ElfInfo(filepath)
     objtype = elfinfo.get_objtype()
-    print("objtype: {}".format(objtype))
+    if DEBUG:
+        print("objtype: {}".format(objtype))
     if objtype  == pet.ElfObjType.DYN:
         base_addr = get_baseaddr(filepath, pid)
     elif objtype == pet.ElfObjType.EXEC:
@@ -197,9 +196,15 @@ def main():
         sys.exit(1)
 
     fd = procmem_getfd(pid)
-    procmem_read(fd, base_addr, offset, size)
-    if write_value != False:
+    if write_value == None:
+        result = procmem_read(fd, base_addr, offset, size)
+        print("{} = 0x{:X}".format(gvar_name, result))
+    if write_value != None:
+        result = procmem_read(fd, base_addr, offset, size)
+        print("before: {} = 0x{:X}".format(gvar_name, result))
         procmem_write(fd, base_addr, offset, write_value, size)
+        result = procmem_read(fd, base_addr, offset, size)
+        print("after: {} = 0x{:X}".format(gvar_name, result))
     procmem_closefd(fd) 
 
 if __name__ == "__main__":
