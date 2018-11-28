@@ -102,7 +102,7 @@ def get_baseaddr(filepath, pid):
             if tmp < ret:
                 ret = tmp
                 if DEBUG:
-                print("start_addr: 0x{:x}".format(ret))
+                    print("start_addr: 0x{:x}".format(ret))
     return ret
 
 def procmem_getfd(pid):
